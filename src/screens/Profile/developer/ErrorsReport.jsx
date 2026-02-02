@@ -22,7 +22,7 @@ const ErrorsReport = () => {
   const ITEMS_PER_PAGE = 15;
 
   useEffect(() => {
-    const errorsRef = ref(db, "appErrors");
+    const errorsRef = ref(db, "admin/appErrors");
 
     const unsub = onValue(errorsRef, (snap) => {
       const raw = snap.val() || {};
@@ -73,7 +73,7 @@ const ErrorsReport = () => {
     const ok = window.confirm("Are you sure you want to delete ALL errors?");
     if (!ok) return;
 
-    await remove(ref(db, "appErrors")); // <-- deletes all errors
+    await remove(ref(db, "admin/appErrors")); // <-- deletes all errors
     setErrors([]);
     setSelectedError(null);
   };

@@ -43,6 +43,8 @@ const ProductEntry = () => {
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteCategoryId, setDeleteCategoryId] = useState(null);
 
+  const [isSpecialCategory, setIsSpecialCategory] = useState(false);
+
   useEffect(() => {
     const catRef = ref(db, "categories");
     onValue(catRef, (snapshot) => {
@@ -51,6 +53,7 @@ const ProductEntry = () => {
         Object.keys(data).map((id) => ({
           id,
           name: data[id].name,
+          specialCate: data[id].specialCate || false, // fetch the flag
         }))
       );
     });
@@ -274,6 +277,16 @@ const handleSubmit = async (e) => {
               className="w-full border rounded px-3 py-2 mb-4"
               placeholder="Category name"
             />
+            <input
+              type="checkbox"
+              id="specialCategory"
+              checked={isSpecialCategory}
+              onChange={(e) => setIsSpecialCategory(e.target.checked)}
+              className="h-4 w-4 mr-2"
+            />
+            <label htmlFor="specialCategory" className="text-sm">
+              Special Category (hidden from stock)
+            </label>
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -289,9 +302,13 @@ const handleSubmit = async (e) => {
                 type="button"
                 onClick={async () => {
                   if (!newCategoryName.trim()) return;
-                  await push(ref(db, "categories"), { name: newCategoryName.trim() });
+                  await push(ref(db, "categories"), {
+                    name: newCategoryName.trim(),
+                    specialCate: isSpecialCategory, // <--- send the flag to DB
+                  });
                   setShowCatPopup(false);
                   setNewCategoryName("");
+                  setIsSpecialCategory(false); // reset checkbox
                 }}
               >
                 Add

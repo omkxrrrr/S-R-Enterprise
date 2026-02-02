@@ -94,26 +94,22 @@ const SalesInvoice = () => {
   const [items, setItems] = useState([]);
   const [subtotal, setSubtotal] = useState(0);
 
-  const [extraCharges, setExtraCharges] = useState(0);   // flat
-  const [discountPercent, setDiscountPercent] = useState(0); // %
-  const [flatDiscount, setFlatDiscount] = useState(0);   // flat
-  const [roundOff, setRoundOff] = useState(0);
+  const calculateItemTotal = (item) => {
+    const box = Number(item.box) || 0;
+    const pieces = Number(item.piecesPerBox) || 0;
+    const price = Number(item.pricePerItem) || 0;
 
-  const discountAmount = round2(
-    (Number(subtotal) * Number(discountPercent || 0)) / 100
-  );
+    if (item.category === "Discount") return -price;
+    if (item.category === "GST") return price;
+    if (item.box === "-" || item.piecesPerBox === "-") return price;
 
-  const totalAfterDiscounts = round2(
-    subtotal - discountAmount - Number(flatDiscount || 0)
-  );
+    return round2(box * pieces * price);
+  };
 
-  const totalAfterCharges = round2(
-    totalAfterDiscounts + Number(extraCharges || 0)
-  );
-
-  // auto round-off to nearest rupee
-  const roundedTotal = Math.round(totalAfterCharges);
-  const calculatedRoundOff = round2(roundedTotal - totalAfterCharges);
+  useEffect(() => {
+    const total = items.reduce((sum, i) => sum + calculateItemTotal(i), 0);
+    setSubtotal(round2(total || 0));
+  }, [items]);
   
   const [createdAt, setCreatedAt] = useState(() => {
     const saved = localStorage.getItem("lastSalesDate");
@@ -177,6 +173,40 @@ const SalesInvoice = () => {
       setWarehouses(
         Object.entries(data).map(([id, details]) => ({ id, ...details }))
       );
+    });
+  }, []);
+
+  // --- Add default discount and GST items in the table ---
+  useEffect(() => {
+    const discountItem = {
+      category: "Discount",
+      productName: "Discount",
+      box: "-", 
+      piecesPerBox: "-", 
+      pricePerItem: 0,
+      total: 0,
+      isEditable: true,
+    };
+    const gstItem = {
+      category: "GST",
+      productName: "GST",
+      box: "-", 
+      piecesPerBox: "-", 
+      pricePerItem: 0,
+      total: 0,
+      isEditable: true,
+    };
+
+    setItems(prevItems => {
+      // Add only if not already present
+      const hasDiscount = prevItems.some(i => i.category === "Discount");
+      const hasGst = prevItems.some(i => i.category === "GST");
+
+      const newItems = [...prevItems];
+      if (!hasDiscount) newItems.push(discountItem);
+      if (!hasGst) newItems.push(gstItem);
+
+      return newItems;
     });
   }, []);
 
@@ -900,18 +930,65 @@ const mergeItems = (oldItems = [], newItems = []) => {
               <th className="border p-2">Action</th>
             </tr>
           </thead>
+
           <tbody>
             {items.length === 0 ? (
-              <tr><td colSpan="8" className="text-center p-4">No items added.</td></tr>
+              <tr>
+                <td colSpan="9" className="text-center p-4">No items added.</td>
+              </tr>
             ) : items.map((item, i) => (
               <tr key={i}>
                 <td className="border p-2">{i + 1}</td>
                 <td className="border p-2">{item.category}</td>
-                <td className="border p-2">{item.productName}</td>
-                <td className="border p-2">{item.box}</td>
-                <td className="border p-2">{item.piecesPerBox}</td>
-                <td className="border p-2">{formatPrice(item.pricePerItem)}</td>
-                <td className="border p-2">{formatPrice(item.total)}</td>
+
+                {/* PRODUCT NAME */}
+                <td className="border p-2">
+                  {item.isEditable ? (
+                    <Input
+                      value={item.productName || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setItems(prev => {
+                          const copy = [...prev];
+                          copy[i].productName = val;
+                          copy[i].total = calculateItemTotal(copy[i]);
+                          return copy;
+                        });
+                      }}
+                    />
+                  ) : item.productName}
+                </td>
+
+                {/* BOX */}
+                <td className="border p-2">{Number(item.box) || 0}</td>
+
+                {/* PIECES PER BOX */}
+                <td className="border p-2">{Number(item.piecesPerBox) || 0}</td>
+
+                {/* PRICE PER ITEM */}
+                <td className="border p-2">
+                  {item.isEditable ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={Number(item.pricePerItem) || 0}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        setItems(prev => {
+                          const copy = [...prev];
+                          copy[i].pricePerItem = val;
+                          copy[i].total = calculateItemTotal(copy[i]);
+                          return copy;
+                        });
+                      }}
+                    />
+                  ) : formatPrice(item.pricePerItem)}
+                </td>
+
+                {/* TOTAL */}
+                <td className="border p-2">{formatPrice(Number(item.total) || 0)}</td>
+
+                {/* DELETE ACTION */}
                 <td className="border p-2">
                   <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(i)}>
                     <Trash2 className="h-4 w-4" />
@@ -919,73 +996,21 @@ const mergeItems = (oldItems = [], newItems = []) => {
                 </td>
               </tr>
             ))}
+
             {items.length > 0 && (
               <tr className="bg-gray-100 font-semibold">
                 <td colSpan="2" className="border p-2"></td>
                 <td className="border p-2 text-right">Total:</td>
-                <td className="border p-2">{totalBoxes}</td>
+                <td className="border p-2">{totalBoxes || 0}</td>
                 <td className="border p-2"></td>
                 <td className="border p-2 text-right">Grand Total:</td>
-                <td className="border p-2">{formatPrice(subtotal)}</td>
+                <td className="border p-2">{formatPrice(subtotal || 0)}</td>
                 <td className="border p-2"></td>
               </tr>
             )}
           </tbody>
+          
         </table>
-      </div>
-
-      <div className="max-w-md ml-auto mt-6 space-y-3 border rounded-lg p-4 bg-slate-50">
-        <div className="flex justify-between text-sm">
-          <span>Subtotal</span>
-          <span>{formatPrice(subtotal)}</span>
-        </div>
-
-        {/* Extra Charges */}
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm">Additional Charges</label>
-          <Input
-            type="number"
-            className="w-32"
-            value={extraCharges}
-            onChange={(e) => setExtraCharges(e.target.value)}
-          />
-        </div>
-
-        {/* Discount % */}
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm">Discount (%)</label>
-          <Input
-            type="number"
-            className="w-32"
-            value={discountPercent}
-            onChange={(e) => setDiscountPercent(e.target.value)}
-          />
-        </div>
-
-        {/* Flat Discount */}
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm">Flat Discount</label>
-          <Input
-            type="number"
-            className="w-32"
-            value={flatDiscount}
-            onChange={(e) => setFlatDiscount(e.target.value)}
-          />
-        </div>
-
-        <hr />
-
-        {/* Round Off */}
-        <div className="flex justify-between text-sm">
-          <span>Round Off</span>
-          <span>{formatPrice(calculatedRoundOff)}</span>
-        </div>
-
-        {/* Final Total */}
-        <div className="flex justify-between text-lg font-semibold">
-          <span>Grand Total</span>
-          <span>{formatPrice(roundedTotal)}</span>
-        </div>
       </div>
 
       <div className="flex justify-end mt-4">
