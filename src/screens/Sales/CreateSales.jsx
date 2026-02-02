@@ -929,7 +929,6 @@ const mergeItems = (oldItems = [], newItems = []) => {
               <th className="border p-2">Total</th>
               <th className="border p-2">Action</th>
             </tr>
-       efsfsfsed     
           </thead>
  
           <tbody>
