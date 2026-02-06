@@ -6,7 +6,7 @@ import { Card, CardContent } from "../../components/ui/card";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { db } from "../../firebase";
-import { ref, get, set } from "firebase/database";
+import { ref, get, set, onValue } from "firebase/database";
 import { toSafeKey } from "../../lib/safekey";
 
 import {
@@ -290,6 +290,10 @@ export default function AddPayment() {
       alert("Error saving transaction");
     }
   };
+
+onValue(ref(db, "/"), (snap) => {
+  console.log(snap.val());
+});
 
   /* ---------------- UI ---------------- */
   return (

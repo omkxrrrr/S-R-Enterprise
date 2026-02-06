@@ -1,20 +1,22 @@
-// firebase.js
+// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database"; // import Realtime DB
+import { getDatabase } from "firebase/database";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyCFD74RiLa8nyR9h9ic6YfQleOxJde0TE0",
-  authDomain: "sr-enterprises-d287b.firebaseapp.com",
-  databaseURL: "https://sr-enterprises-d287b-default-rtdb.firebaseio.com", // Add this
-  projectId: "sr-enterprises-d287b",
-  storageBucket: "sr-enterprises-d287b.appspot.com",
-  messagingSenderId: "596370637358",
-  appId: "1:596370637358:web:13ee329ca7fbcd8542d5bf",
+  apiKey: "AIzaSyCWjIpsf5UXocwsrhtp6KIr2oEtx1aVRQU",
+  authDomain: "fir-r-enterprise-9ed2c.firebaseapp.com",
+  databaseURL: "https://fir-r-enterprise-9ed2c-default-rtdb.firebaseio.com",
+  projectId: "fir-r-enterprise-9ed2c",
+  storageBucket: "fir-r-enterprise-9ed2c.firebasestorage.app",
+  messagingSenderId: "991647484832",
+  appId: "1:991647484832:web:c547af9e8430da3ff732c5",
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Realtime Database
 export const db = getDatabase(app);
-
-export default app;
