@@ -31,21 +31,80 @@ export default function Ledger() {
   /* ---------- Fetch Parties ---------- */
   useEffect(() => {
     const partiesRef = ref(db, "parties");
+    const salesRef = ref(db, "sales");
+    const paymentsRef = ref(db, "payments");
 
-    const unsub = onValue(partiesRef, (snapshot) => {
-      const data = snapshot.val() || {};
+    let partiesData = {};
+    let salesData = {};
+    let paymentsData = {};
 
-      const list = Object.entries(data).map(([id, party]) => ({
-        partyId: id,
-        partyName: party.name || "-",
-        city: party.city || "-",
-        balance: Number(party.balance || 0),
-      }));
+    const rebuildSummary = () => {
+      const list = Object.entries(partiesData).map(([id, party]) => {
+        const partyName = party.name || "-";
+        let balance = Number(party.openingBalance || 0);
+
+        /* ---- SALES ---- */
+        Object.values(salesData).forEach(group => {
+          Object.values(group).forEach(inv => {
+            if (inv.partyId !== id) return;
+
+            const total = (inv.items || []).reduce(
+              (s, i) => s + Number(i.total || 0),
+              0
+            );
+
+            balance += total;
+          });
+        });
+
+        /* ---- PAYMENTS ---- */
+        Object.values(paymentsData).forEach(l1 => {
+          Object.values(l1).forEach(l2 => {
+            Object.values(l2).forEach(l3 => {
+              Object.values(l3).forEach(p => {
+                if (!p?.txnId) return;
+
+                if (p.fromName === partyName)
+                  balance -= Number(p.amount || 0);
+
+                if (p.toName === partyName)
+                  balance += Number(p.amount || 0);
+              });
+            });
+          });
+        });
+
+        return {
+          partyId: id,
+          partyName,
+          city: party.city || "-",
+          balance,
+        };
+      });
 
       setParties(list);
+    };
+
+    const u1 = onValue(partiesRef, snap => {
+      partiesData = snap.val() || {};
+      rebuildSummary();
     });
 
-    return () => unsub();
+    const u2 = onValue(salesRef, snap => {
+      salesData = snap.val() || {};
+      rebuildSummary();
+    });
+
+    const u3 = onValue(paymentsRef, snap => {
+      paymentsData = snap.val() || {};
+      rebuildSummary();
+    });
+
+    return () => {
+      u1();
+      u2();
+      u3();
+    };
   }, []);
 
   /* ---------- Helpers ---------- */
