@@ -63,6 +63,10 @@ const SalesInvoice = () => {
   const boxInputRef = useRef(null);
   const priceInputRef = useRef(null);
   const addButtonRef = useRef(null);
+  const partyRef = useRef(null);
+  const warehouseRef = useRef(null);
+  const categoryRef = useRef(null);
+  const productRef = useRef(null);
 
   // Stocks, Parties, Warehouses
   const [stocks, setStocks] = useState([]);
@@ -99,12 +103,27 @@ const SalesInvoice = () => {
     const pieces = Number(item.piecesPerBox) || 0;
     const price = Number(item.pricePerItem) || 0;
 
-    if (item.category === "Discount") return -price;
-    if (item.category === "GST") return price;
-    if (item.box === "-" || item.piecesPerBox === "-") return price;
+    let total = 0;
 
-    return round2(box * pieces * price);
+    if (item.category === "Discount") {
+      total = -price;
+    } 
+    else if (item.category === "GST") {
+      total = price;
+    } 
+    else if (item.box === "-" || item.piecesPerBox === "-") {
+      total = price;
+    } 
+    else {
+      total = box * pieces * price;
+    }
+
+    return round2(Number(total) || 0); // ⭐ Final safe return
   };
+
+  const itemsToSave = items.filter(
+    item => item.category !== "GST" && item.category !== "Discount"
+  );
 
   useEffect(() => {
     const total = items.reduce((sum, i) => sum + calculateItemTotal(i), 0);
@@ -176,38 +195,30 @@ const SalesInvoice = () => {
     });
   }, []);
 
-  // --- Add default discount and GST items in the table ---
-  useEffect(() => {
-    const discountItem = {
+  const getDefaultTaxRows = () => [
+    {
       category: "Discount",
       productName: "Discount",
-      box: "-", 
-      piecesPerBox: "-", 
+      box: "-",
+      piecesPerBox: "-",
       pricePerItem: 0,
       total: 0,
       isEditable: true,
-    };
-    const gstItem = {
+    },
+    {
       category: "GST",
       productName: "GST",
-      box: "-", 
-      piecesPerBox: "-", 
+      box: "-",
+      piecesPerBox: "-",
       pricePerItem: 0,
       total: 0,
       isEditable: true,
-    };
+    }
+  ];
 
-    setItems(prevItems => {
-      // Add only if not already present
-      const hasDiscount = prevItems.some(i => i.category === "Discount");
-      const hasGst = prevItems.some(i => i.category === "GST");
-
-      const newItems = [...prevItems];
-      if (!hasDiscount) newItems.push(discountItem);
-      if (!hasGst) newItems.push(gstItem);
-
-      return newItems;
-    });
+  // --- Add default discount and GST items in the table ---
+  useEffect(() => {
+    setItems(getDefaultTaxRows());
   }, []);
 
   // Pre-fill invoice if editing
@@ -346,6 +357,10 @@ const SalesInvoice = () => {
     setPiecesPerBox("");
     setPricePerItem("");
     setStockWarning("");
+
+    setTimeout(() => {
+      categoryRef.current?.focus();
+    }, 100);
   };
 
 
@@ -476,7 +491,7 @@ const mergeItems = (oldItems = [], newItems = []) => {
           createdAt: newISO,
           partyId: selectedPartyId,
           warehouseId: selectedWarehouseId,
-          items,
+          items: itemsToSave,
           subtotal: freshSubtotal,
           total: freshSubtotal,
           invoiceNumber: invoiceToEdit.invoiceNumber,
@@ -531,7 +546,7 @@ const mergeItems = (oldItems = [], newItems = []) => {
                 sale.partyId === selectedPartyId &&
                 sale.warehouseId === selectedWarehouseId
               ) {
-                const mergedItems = mergeItems(sale.items || [], items);
+                const mergedItems = mergeItems(sale.items || [], itemsToSave);
                 const mergedSubtotal =
                   calculateSubtotalFromItems(mergedItems);
 
@@ -543,7 +558,7 @@ const mergeItems = (oldItems = [], newItems = []) => {
                   updatedAt: newISO,
                 });
 
-                await updateStockAfterSale(items);
+                await updateStockAfterSale(itemsToSave);
 
                 toast.success(
                   `Merged into Invoice No: ${sale.invoiceNumber}`
@@ -588,21 +603,22 @@ const mergeItems = (oldItems = [], newItems = []) => {
         dueDate: dueDate ? formatToISO(dueDate) : null,
         partyId: selectedPartyId,
         warehouseId: selectedWarehouseId,
-        items,
+        items: itemsToSave,
         subtotal,
         total: subtotal,
         invoiceNumber,
       });
 
-      await updateStockAfterSale(items);
+      await updateStockAfterSale(itemsToSave);
 
       toast.success(`Sale saved! Invoice No: ${invoiceNumber}`);
-      setItems([]);
+      setItems(getDefaultTaxRows());
       setSubtotal(0);
     } catch (err) {
       console.error(err);
       toast.error("Error saving sale");
     }
+
   };
 
   // FILTERED LISTS (CASE-INSENSITIVE)
@@ -651,6 +667,17 @@ const mergeItems = (oldItems = [], newItems = []) => {
 
   // --- RENDERING (same as before, just use filteredParties, filteredCategories, filteredStocks) ---
 
+  const hasRealItems = items.some(
+    item => item.category !== "GST" && item.category !== "Discount"
+  );
+  const shouldDisable = hasRealItems;
+
+  useEffect(() => {
+    setTimeout(() => {
+      partyRef.current?.focus();
+    }, 150);
+  }, []);
+
 
   return (
     <div className="max-w-6xl mx-auto p-6 mt-10 space-y-6">
@@ -679,11 +706,18 @@ const mergeItems = (oldItems = [], newItems = []) => {
           <label className="text-sm font-medium">Party</label>
           <Popover open={partyOpen} onOpenChange={setPartyOpen}>
             <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-between px-3"
-                disabled={items.length > 0}
-              >
+               <Button
+                  ref={partyRef}
+                  variant="outline"
+                  className="w-full justify-between px-3"
+                  disabled={shouldDisable}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setPartyOpen(true);
+                    }
+                  }}
+                >
                 {selectedPartyName || "-- Choose Party --"}
                 <ChevronsUpDown className="h-4 w-4 opacity-50" />
               </Button>
@@ -710,12 +744,17 @@ const mergeItems = (oldItems = [], newItems = []) => {
                         key={i}
                         value={p.id}
                         onSelect={() => {
-                          if (items.length === 0) {
-                            setSelectedPartyId(p.id);
-                            setPartyOpen(false);
-                          } else {
+                          if (hasRealItems) {
                             alert("Party cannot be changed after adding items.");
+                            return;
                           }
+
+                          setSelectedPartyId(p.id);
+                          setPartyOpen(false);
+
+                          setTimeout(() => {
+                            warehouseRef.current?.focus();
+                          }, 100);
                         }}
                       >
                         <Check
@@ -757,9 +796,16 @@ const mergeItems = (oldItems = [], newItems = []) => {
           <Popover open={warehouseOpen} onOpenChange={setWarehouseOpen}>
             <PopoverTrigger asChild>
               <Button
+                ref={warehouseRef}
                 variant="outline"
                 className="w-full justify-between px-3"
-                disabled={items.length > 0}
+                disabled={shouldDisable}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setWarehouseOpen(true);
+                  }
+                }}
               >
                 {selectedWarehouseName || "-- Select Warehouse --"}
                 <ChevronsUpDown className="h-4 w-4 opacity-50" />
@@ -782,6 +828,10 @@ const mergeItems = (oldItems = [], newItems = []) => {
                         onSelect={() => {
                           setSelectedWarehouseId(w.id);
                           setWarehouseOpen(false);
+
+                          setTimeout(() => {
+                            categoryRef.current?.focus();
+                          }, 100);
                         }}
                       >
                         <Check className={cn(
@@ -805,7 +855,17 @@ const mergeItems = (oldItems = [], newItems = []) => {
           <label className="text-sm font-medium">Category</label>
           <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-between px-3">
+              <Button
+                ref={categoryRef}
+                variant="outline"
+                className="w-full justify-between px-3"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setCategoryOpen(true);
+                  }
+                }}
+              >
                 {selectedCategory || "Select Category"}
                 <ChevronsUpDown className="h-4 w-4 opacity-50" />
               </Button>
@@ -825,7 +885,18 @@ const mergeItems = (oldItems = [], newItems = []) => {
                   )
                     .filter(cat => cat.toLowerCase().includes(categorySearchText.toLowerCase()))
                     .map((cat, i) => (
-                      <CommandItem key={i} onSelect={() => { setSelectedCategory(cat); setSelectedStock(null); setCategoryOpen(false); }}>
+                      <CommandItem 
+                        key={i} 
+                        onSelect={() => { 
+                          setSelectedCategory(cat); 
+                          setSelectedStock(null); 
+                          setCategoryOpen(false); 
+
+                          setTimeout(() => {
+                            productRef.current?.focus();
+                          }, 100);
+                        }}
+                      >
                         {cat}
                       </CommandItem>
                     ))}
@@ -840,7 +911,17 @@ const mergeItems = (oldItems = [], newItems = []) => {
           <label className="text-sm font-medium">Product</label>
           <Popover open={productOpen} onOpenChange={setProductOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-between px-3">
+              <Button
+                ref={productRef}
+                variant="outline"
+                className="w-full justify-between px-3"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setProductOpen(true);
+                  }
+                }}
+              >
                 {selectedStock ? selectedStock.productName : "Select Product"}
                 <ChevronsUpDown className="h-4 w-4 opacity-50" />
               </Button>
@@ -943,20 +1024,13 @@ const mergeItems = (oldItems = [], newItems = []) => {
 
                 {/* PRODUCT NAME */}
                 <td className="border p-2">
-                  {item.isEditable ? (
-                    <Input
-                      value={item.productName || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setItems(prev => {
-                          const copy = [...prev];
-                          copy[i].productName = val;
-                          copy[i].total = calculateItemTotal(copy[i]);
-                          return copy;
-                        });
-                      }}
-                    />
-                  ) : item.productName}
+                  {(item.category === "GST" || item.category === "Discount")
+                    ? (
+                      <span className="font-medium text-gray-600">
+                        {item.productName}
+                      </span>
+                    )
+                    : item.productName}
                 </td>
 
                 {/* BOX */}
@@ -990,9 +1064,11 @@ const mergeItems = (oldItems = [], newItems = []) => {
 
                 {/* DELETE ACTION */}
                 <td className="border p-2">
-                  <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(i)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {item.category !== "GST" && item.category !== "Discount" && (
+                    <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(i)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -291,10 +291,6 @@ export default function AddPayment() {
     }
   };
 
-onValue(ref(db, "/"), (snap) => {
-  console.log(snap.val());
-});
-
   /* ---------------- UI ---------------- */
   return (
     <div className="min-h-screen flex justify-center px-4 pt-8">

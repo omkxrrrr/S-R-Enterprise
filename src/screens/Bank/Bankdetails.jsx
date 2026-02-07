@@ -1,3 +1,4 @@
+//C:\Users\omkar\Desktop\client\src\screens\Bank\Bankdetails.jsx
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../../firebase";
@@ -5,6 +6,8 @@ import { ref, onValue, off, set } from "firebase/database";
 import { Button } from "../../components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import DatePicker from "react-datepicker";
+import { toSafeKey } from "../../lib/safekey";
+
 import "react-datepicker/dist/react-datepicker.css";
 
 const BankLedgerScreen = () => {
@@ -59,7 +62,7 @@ const BankLedgerScreen = () => {
 
         // EXPENSES
         await new Promise((resolve) =>
-          onValue(ref(db, `expenses/bank/${bankName}`), (snap) => {
+          onValue(ref(db, `expenses/bank/${toSafeKey(bankName)}`), (snap) => {
             const data = snap.val() || {};
             Object.values(data).forEach((e) => {
               if (!e.amount || !e.date) return;
@@ -122,7 +125,7 @@ const BankLedgerScreen = () => {
 
         // TRANSFERS
         await new Promise((resolve) =>
-          onValue(ref(db, `transfers/bank/${bankName}`), (snap) => {
+          onValue(ref(db, `transfers/bank/${toSafeKey(bankName)}`), (snap) => {
             const data = snap.val() || {};
             Object.entries(data).forEach(([date, dateNode]) => {
               Object.values(dateNode).forEach((t) => {

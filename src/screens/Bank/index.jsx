@@ -1,3 +1,4 @@
+//C:\Users\omkar\Desktop\client\src\screens\Bank\index.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ref, onValue } from "firebase/database";
