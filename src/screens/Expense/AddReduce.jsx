@@ -140,7 +140,9 @@ export default function AddExpense() {
       const data = snap.val();
       const currentBalance = Number(data.balance || 0);
 
-      const updatedBalance = currentBalance - expenseAmount;
+      const updatedBalance = Number(
+        (currentBalance - expenseAmount).toFixed(2)
+      );
 
       // 3️⃣ Update balance SAFELY
       await update(bankRef, {

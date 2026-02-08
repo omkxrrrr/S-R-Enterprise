@@ -157,6 +157,42 @@ const PartyLedgerScreen = () => {
           )
         );
 
+      /* Expenses (GLOBAL NODE ONLY) */
+      await new Promise((resolve) =>
+        onValue(
+          ref(db, "expenses/party"),
+          (snap) => {
+
+            const expenses = snap.val() || {};
+
+            Object.values(expenses).forEach((partyGroup) => {
+              Object.values(partyGroup).forEach((exp) => {
+
+                // Match this ledger's party
+                if (exp.entity !== partyName) return;
+
+                const key = `expense-${exp.createdAt}`;
+                if (usedKeys.has(key)) return;
+                usedKeys.add(key);
+
+                transactions.push({
+                  type: "Expense",
+                  date: exp.date || exp.createdAt,
+                  invoice: "-",
+                  source: "-",
+                  notes: exp.expenseFor || "-",
+                  amount: -round2(Number(exp.amount || 0)),
+                });
+
+              });
+            });
+
+            resolve();
+          },
+          { onlyOnce: true }
+        )
+      );
+
         /* Sort by date */
         transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
 

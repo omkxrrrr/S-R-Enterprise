@@ -10,7 +10,11 @@ export default function Ledger() {
   const navigate = useNavigate();
 
   const [parties, setParties] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return sessionStorage.getItem("ledgerSearch") || "";
+  });
+
   const [sortConfig, setSortConfig] = useState({
     key: "partyName",
     direction: "asc", // ✅ A–Z by default
@@ -27,63 +31,144 @@ export default function Ledger() {
   useEffect(() => {
     sessionStorage.setItem("ledgerPage", currentPage);
   }, [currentPage]);
+  useEffect(() => {
+    sessionStorage.setItem("ledgerSearch", searchQuery);
+  }, [searchQuery]);
 
   /* ---------- Fetch Parties ---------- */
   useEffect(() => {
     const partiesRef = ref(db, "parties");
     const salesRef = ref(db, "sales");
     const paymentsRef = ref(db, "payments");
+    const expensesRef = ref(db, "expenses");
 
     let partiesData = {};
     let salesData = {};
     let paymentsData = {};
+    let expensesData = {};
 
-    const rebuildSummary = () => {
-      const list = Object.entries(partiesData).map(([id, party]) => {
-        const partyName = party.name || "-";
-        let balance = Number(party.openingBalance || 0);
+    const round2 = (n) =>
+  Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
-        /* ---- SALES ---- */
-        Object.values(salesData).forEach(group => {
-          Object.values(group).forEach(inv => {
-            if (inv.partyId !== id) return;
+  const rebuildSummary = () => {
 
-            const total = (inv.items || []).reduce(
+    const list = Object.entries(partiesData).map(([id, party]) => {
+
+      const partyName = party.name || "-";
+      const openingBalance = round2(Number(party.openingBalance || 0));
+      const createdAt = party.createdAt;
+
+      const transactions = [];
+
+      /* ---- Opening ---- */
+      transactions.push({
+        date: createdAt,
+        amount: openingBalance
+      });
+
+      /* ---- SALES ---- */
+      Object.values(salesData).forEach(group => {
+        Object.values(group).forEach(inv => {
+
+          if (inv.partyId !== id) return;
+
+          const total = round2(
+            (inv.items || []).reduce(
               (s, i) => s + Number(i.total || 0),
               0
-            );
+            )
+          );
 
-            balance += total;
+          transactions.push({
+            date: inv.createdAt,
+            amount: total
           });
+
         });
+      });
 
-        /* ---- PAYMENTS ---- */
-        Object.values(paymentsData).forEach(l1 => {
-          Object.values(l1).forEach(l2 => {
-            Object.values(l2).forEach(l3 => {
-              Object.values(l3).forEach(p => {
-                if (!p?.txnId) return;
+      /* ---- PAYMENTS ---- */
+      const usedPaymentKeys = new Set();
 
-                if (p.fromName === partyName)
-                  balance -= Number(p.amount || 0);
+      Object.values(paymentsData).forEach(l1 => {
+        Object.values(l1).forEach(l2 => {
+          Object.values(l2).forEach(l3 => {
+            Object.values(l3).forEach(p => {
 
-                if (p.toName === partyName)
-                  balance += Number(p.amount || 0);
+              if (!p?.txnId) return;
+
+              const key = `payment-${p.txnId}`;
+              if (usedPaymentKeys.has(key)) return;
+              usedPaymentKeys.add(key);
+
+              if (
+                p.fromName !== partyName &&
+                p.toName !== partyName
+              ) return;
+
+              let amount = round2(Number(p.amount || 0));
+
+              if (p.fromName === partyName)
+                amount = -amount;
+
+              if (p.toName === partyName)
+                amount = amount;
+
+              transactions.push({
+                date: p.date || p.createdAt,
+                amount
               });
+
             });
           });
         });
-
-        return {
-          partyId: id,
-          partyName,
-          city: party.city || "-",
-          balance,
-        };
       });
 
-      setParties(list);
-    };
+      /* ---- EXPENSES ---- */
+      Object.values(expensesData.party || {}).forEach(partyGroup => {
+        Object.values(partyGroup).forEach(exp => {
+
+          const expParty =
+            exp.entity ||
+            exp.entityName ||
+            exp.entityId;
+
+          if (expParty !== partyName) return;
+
+          transactions.push({
+            date: exp.date || exp.createdAt,
+            amount: -round2(Number(exp.amount || 0))
+          });
+
+        });
+      });
+
+      /* ---- SORT ---- */
+      transactions.sort(
+        (a,b) => new Date(a.date) - new Date(b.date)
+      );
+
+      /* ---- RUNNING BALANCE ---- */
+      let runningBalance = 0;
+
+      transactions.forEach((t,i) => {
+        runningBalance =
+          i === 0
+            ? round2(t.amount)
+            : round2(runningBalance + t.amount);
+      });
+
+      return {
+        partyId: id,
+        partyName,
+        city: party.city || "-",
+        balance: runningBalance
+      };
+
+    });
+
+    setParties(list);
+  };
 
     const u1 = onValue(partiesRef, snap => {
       partiesData = snap.val() || {};
@@ -100,10 +185,16 @@ export default function Ledger() {
       rebuildSummary();
     });
 
+    const u4 = onValue(expensesRef, snap => {
+      expensesData = snap.val() || {};
+      rebuildSummary();
+    });
+
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
   }, []);
 
